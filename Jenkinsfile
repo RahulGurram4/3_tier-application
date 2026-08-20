@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        DOCKERHUB_USERNAME = 'gurramrahul'
+    }
+
     options {
         timestamps()
         disableConcurrentBuilds()
@@ -38,25 +42,45 @@ pipeline {
             }
         }
 
-        stage('Validate Docker Compose') {
+        stage('Build Docker images') {
             steps {
-                bat 'docker compose config'
+                script {
+                    env.IMAGE_TAG = bat(
+                        returnStdout: true,
+                        script: '@git rev-parse --short HEAD'
+                    ).trim()
+                }
+                bat 'docker compose build'
             }
         }
 
-        stage('Build Docker images') {
+        stage('Push images to Docker Hub') {
             steps {
-                bat 'docker compose build'
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKERHUB_LOGIN',
+                        passwordVariable: 'DOCKERHUB_TOKEN'
+                    )
+                ]) {
+                    bat 'echo %DOCKERHUB_TOKEN% | docker login --username %DOCKERHUB_LOGIN% --password-stdin'
+                    bat 'docker compose push'
+                    bat 'docker tag %DOCKERHUB_USERNAME%/jerney-backend:%IMAGE_TAG% %DOCKERHUB_USERNAME%/jerney-backend:latest'
+                    bat 'docker tag %DOCKERHUB_USERNAME%/jerney-frontend:%IMAGE_TAG% %DOCKERHUB_USERNAME%/jerney-frontend:latest'
+                    bat 'docker push %DOCKERHUB_USERNAME%/jerney-backend:latest'
+                    bat 'docker push %DOCKERHUB_USERNAME%/jerney-frontend:latest'
+                    bat 'docker logout'
+                }
             }
         }
     }
 
     post {
         success {
-            echo 'Build completed successfully.'
+            echo 'Images built and pushed to Docker Hub successfully.'
         }
         failure {
-            echo 'Build failed. Check the stage log above.'
+            echo 'Pipeline failed. Open the failed stage log for details.'
         }
     }
 }

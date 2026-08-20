@@ -16,6 +16,7 @@ services:
       retries: 5
 
   backend:
+    image: ${DOCKERHUB_USERNAME:-gurramrahul}/jerney-backend:${IMAGE_TAG:-latest}
     build: ./backend
     container_name: jerney-backend
     restart: unless-stopped
@@ -31,6 +32,7 @@ services:
         condition: service_healthy
 
   frontend:
+    image: ${DOCKERHUB_USERNAME:-gurramrahul}/jerney-frontend:${IMAGE_TAG:-latest}
     build: ./frontend
     container_name: jerney-frontend
     restart: unless-stopped
