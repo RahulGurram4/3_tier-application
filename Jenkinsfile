@@ -63,7 +63,7 @@ pipeline {
                         passwordVariable: 'DOCKERHUB_TOKEN'
                     )
                 ]) {
-                    bat 'echo %DOCKERHUB_TOKEN% | docker login --username %DOCKERHUB_LOGIN% --password-stdin'
+                    bat 'powershell -NoProfile -Command "$env:DOCKERHUB_TOKEN | docker login --username $env:DOCKERHUB_LOGIN --password-stdin"'
                     bat 'docker compose push'
                     bat 'docker tag %DOCKERHUB_USERNAME%/jerney-backend:%IMAGE_TAG% %DOCKERHUB_USERNAME%/jerney-backend:latest'
                     bat 'docker tag %DOCKERHUB_USERNAME%/jerney-frontend:%IMAGE_TAG% %DOCKERHUB_USERNAME%/jerney-frontend:latest'
