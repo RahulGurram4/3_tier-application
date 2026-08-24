@@ -11,22 +11,25 @@ pipeline {
     }
 
     stages {
+
         stage('Check tools') {
             steps {
-                bat 'node --version'
-                bat 'npm --version'
-                bat 'docker --version'
-                bat 'docker compose version'
+                sh 'node --version'
+                sh 'npm --version'
+                sh 'git --version'
+                sh 'docker --version'
+                sh 'docker-compose --version'
             }
         }
 
         stage('Install dependencies') {
             steps {
                 dir('backend') {
-                    bat 'npm ci'
+                    sh 'npm ci'
                 }
+
                 dir('frontend') {
-                    bat 'npm ci'
+                    sh 'npm ci'
                 }
             }
         }
@@ -34,10 +37,11 @@ pipeline {
         stage('Lint') {
             steps {
                 dir('backend') {
-                    bat 'npm run lint'
+                    sh 'npm run lint'
                 }
+
                 dir('frontend') {
-                    bat 'npm run lint'
+                    sh 'npm run lint'
                 }
             }
         }
@@ -45,12 +49,13 @@ pipeline {
         stage('Build Docker images') {
             steps {
                 script {
-                    env.IMAGE_TAG = bat(
-                        returnStdout: true,
-                        script: '@git rev-parse --short HEAD'
+                    env.IMAGE_TAG = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
                     ).trim()
                 }
-                bat 'docker compose build'
+
+                sh 'docker-compose build'
             }
         }
 
@@ -63,13 +68,29 @@ pipeline {
                         passwordVariable: 'DOCKERHUB_TOKEN'
                     )
                 ]) {
-                    bat 'powershell -NoProfile -Command "$env:DOCKERHUB_TOKEN | docker login --username $env:DOCKERHUB_LOGIN --password-stdin"'
-                    bat 'docker compose push'
-                    bat 'docker tag %DOCKERHUB_USERNAME%/jerney-backend:%IMAGE_TAG% %DOCKERHUB_USERNAME%/jerney-backend:latest'
-                    bat 'docker tag %DOCKERHUB_USERNAME%/jerney-frontend:%IMAGE_TAG% %DOCKERHUB_USERNAME%/jerney-frontend:latest'
-                    bat 'docker push %DOCKERHUB_USERNAME%/jerney-backend:latest'
-                    bat 'docker push %DOCKERHUB_USERNAME%/jerney-frontend:latest'
-                    bat 'docker logout'
+
+                    sh '''
+                        echo "$DOCKERHUB_TOKEN" | docker login \
+                            --username "$DOCKERHUB_LOGIN" \
+                            --password-stdin
+                    '''
+
+                    sh 'docker-compose push'
+
+                    sh '''
+                        docker tag "$DOCKERHUB_USERNAME/jerney-backend:$IMAGE_TAG" \
+                                   "$DOCKERHUB_USERNAME/jerney-backend:latest"
+
+                        docker tag "$DOCKERHUB_USERNAME/jerney-frontend:$IMAGE_TAG" \
+                                   "$DOCKERHUB_USERNAME/jerney-frontend:latest"
+                    '''
+
+                    sh '''
+                        docker push "$DOCKERHUB_USERNAME/jerney-backend:latest"
+                        docker push "$DOCKERHUB_USERNAME/jerney-frontend:latest"
+                    '''
+
+                    sh 'docker logout'
                 }
             }
         }
@@ -77,10 +98,12 @@ pipeline {
 
     post {
         success {
-            echo 'Images built and pushed to Docker Hub successfully.'
+            echo 'CI pipeline completed successfully.'
+            echo 'Docker images were built and pushed to Docker Hub.'
         }
+
         failure {
-            echo 'Pipeline failed. Open the failed stage log for details.'
+            echo 'Pipeline failed. Check the failed stage console output.'
         }
     }
 }
