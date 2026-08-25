@@ -3,6 +3,9 @@ pipeline {
 
     environment {
         DOCKERHUB_USERNAME = 'gurramrahul'
+        EC2_HOST = 'ec2-54-157-0-197.compute-1.amazonaws.com'
+        EC2_USER = 'ubuntu'
+        DEPLOY_DIR = '/opt/jerney'
     }
 
     options {
@@ -94,12 +97,72 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy to AWS') {
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'aws-ec2-ssh',
+                        keyFileVariable: 'SSH_KEY',
+                        usernameVariable: 'SSH_USER'
+                    )
+                ]) {
+
+                    sh '''
+                        chmod 600 "$SSH_KEY"
+
+                        ssh \
+                          -i "$SSH_KEY" \
+                          -o StrictHostKeyChecking=no \
+                          -o UserKnownHostsFile=/dev/null \
+                          "$SSH_USER@$EC2_HOST" \
+                          "cd $DEPLOY_DIR && \
+                           git fetch origin main && \
+                           git reset --hard origin/main && \
+                           export DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME && \
+                           export IMAGE_TAG=$IMAGE_TAG && \
+                           docker compose pull && \
+                           docker compose up -d"
+                    '''
+                }
+            }
+        }
+
+        stage('AWS health check') {
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'aws-ec2-ssh',
+                        keyFileVariable: 'SSH_KEY',
+                        usernameVariable: 'SSH_USER'
+                    )
+                ]) {
+
+                    sh '''
+                        chmod 600 "$SSH_KEY"
+
+                        ssh \
+                          -i "$SSH_KEY" \
+                          -o StrictHostKeyChecking=no \
+                          -o UserKnownHostsFile=/dev/null \
+                          "$SSH_USER@$EC2_HOST" \
+                          "for i in 1 2 3 4 5 6; do \
+                               if curl -fsS http://localhost:8080/api/health; then \
+                                   exit 0; \
+                               fi; \
+                               sleep 5; \
+                           done; \
+                           exit 1"
+                    '''
+                }
+            }
+        }
     }
 
     post {
         success {
-            echo 'CI pipeline completed successfully.'
-            echo 'Docker images were built and pushed to Docker Hub.'
+            echo 'CI/CD pipeline completed successfully.'
+            echo 'Docker images were pushed and AWS deployment passed the health check.'
         }
 
         failure {
