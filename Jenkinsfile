@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKERHUB_USERNAME = 'gurramrahul'
-        EC2_HOST = 'ec2-54-157-0-197.compute-1.amazonaws.com'
+        EC2_HOST = '3.84.171.54'
         EC2_USER = 'ubuntu'
         DEPLOY_DIR = '/opt/jerney'
     }
